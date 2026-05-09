@@ -35,11 +35,19 @@ public class OrderController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping
+    @GetMapping("/paged")
     public PagedResponse<Order> findAll(
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(required = false) String lastKey) {
         return repository.findAllPaged(limit, lastKey);
+    }
+
+    @GetMapping("/user/{userId}/status/{status}")
+    public List<Order> findAllByUserAndStatus(
+            @PathVariable String userId,
+            @PathVariable OrderStatus status
+    ){
+        return repository.findByUserAndStatus(userId, status);
     }
 
     @GetMapping("/user/{userId}")
@@ -47,10 +55,10 @@ public class OrderController {
         return repository.findByUserId(userId);
     }
 
-//    @GetMapping
-//    public List<Order> findAll() {
-//        return repository.findAll();
-//    }
+    @GetMapping
+    public List<Order> findAll() {
+        return repository.findAll();
+    }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<Void> updateStatus(

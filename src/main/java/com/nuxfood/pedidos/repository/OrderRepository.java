@@ -80,6 +80,7 @@ public class OrderRepository {
                 .expressionAttributeValues(
                         Map.of(":status", AttributeValue.fromS(newStatus.name()))
                 )
+                .conditionExpression("attribute_exists(orderId)") // só atualiza caso encontre o item
         );
     }
 
@@ -114,13 +115,31 @@ public class OrderRepository {
             }
         }
 
-
         return PagedResponse.<Order>builder()
                 .items(orders)
                 .nextKey(nextKey)
                 .count(orders.size())
                 .build();
 
+    }
+
+    // Find by User + filter by status - query no GSI com FilterExpression
+    public List<Order> findByUserAndStatus(String userId, OrderStatus status) {
+        QueryResponse response = dynamoDbClient.query(r -> r
+                .tableName(TABLE)
+                .indexName("userId-index")
+                .keyConditionExpression("userId = :uid")
+                .filterExpression("#s = :status")
+                .expressionAttributeNames(Map.of("#s", "status"))
+                .expressionAttributeValues(Map.of(
+                        ":uid", AttributeValue.fromS(userId),
+                        ":status", AttributeValue.fromS(status.name())
+                ))
+            );
+
+        return response.items().stream()
+                .map(orderDynamoMapper::toOrder)
+                .toList();
     }
 
 }

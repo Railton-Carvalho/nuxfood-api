@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: nuxfood-api
+
+aws:
+  region: us-east-1
+  profile: pessoal
+
+server:
+  port: 8080

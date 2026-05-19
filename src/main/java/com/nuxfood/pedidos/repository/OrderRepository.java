@@ -3,12 +3,14 @@ package com.nuxfood.pedidos.repository;
 import com.nuxfood.pedidos.mapper.OrderDynamoMapper;
 import com.nuxfood.pedidos.model.Order;
 import com.nuxfood.pedidos.model.PagedResponse;
+import com.nuxfood.pedidos.model.enums.CancellationReason;
 import com.nuxfood.pedidos.model.enums.OrderStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +71,22 @@ public class OrderRepository {
         return response.items().stream()
                 .map(orderDynamoMapper::toOrder)
                 .collect(Collectors.toList());
+    }
+
+    public void cancel(String orderId, CancellationReason reason) {
+        dynamoDbClient.updateItem(r -> r
+                .tableName(TABLE)
+                .key(Map.of("orderId", AttributeValue.fromS(orderId)))
+                .updateExpression("SET #s = :cancelled, cancelReason = :reason, cancelledAt = :at")
+                .expressionAttributeNames(Map.of("#s", "status"))
+                .expressionAttributeValues(Map.of(
+                        ":cancelled", AttributeValue.fromS(OrderStatus.CANCELLED.name()),
+                        ":reason", AttributeValue.fromS(reason.name()),
+                        ":at", AttributeValue.fromS(LocalDateTime.now().toString()),
+                        ":delivered", AttributeValue.fromS(OrderStatus.DELIVERED.name())
+                ))
+                .conditionExpression("attribute_exists(orderId) AND #s <> :delivered")
+        );
     }
 
     public void updateStatus(String orderId, OrderStatus newStatus) {

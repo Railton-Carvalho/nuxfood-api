@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
 
 @Slf4j
 @Component
@@ -33,6 +36,8 @@ public class OrderProducer {
             String queueUrl = OrderType.EXPRESS.equals(order.getOrderType())?
                     ordersExpressQueueUrl
                     : ordersQueueUrl;
+            log.info("Analizing Order Data for progress...: " + order.getOrderId());
+            TimeUnit.SECONDS.sleep(5);
 
             sqsTemplate.send(queueUrl, message);
 

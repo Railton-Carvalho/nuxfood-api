@@ -2,7 +2,9 @@ package com.nuxfood.pedidos.controller;
 
 import com.nuxfood.pedidos.model.Order;
 import com.nuxfood.pedidos.model.PagedResponse;
+import com.nuxfood.pedidos.model.enums.CancellationReason;
 import com.nuxfood.pedidos.model.enums.OrderStatus;
+import com.nuxfood.pedidos.orders.cancellation.OrderCancellationService;
 import com.nuxfood.pedidos.orders.messaging.OrderProducer;
 import com.nuxfood.pedidos.repository.OrderRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,6 +28,8 @@ public class OrderController {
     private final OrderRepository repository;
 
     private final OrderProducer orderProducer;
+
+    private final OrderCancellationService orderCancellationService;
 
     @Operation(summary = "Criar pedido")
     @PostMapping
@@ -88,5 +92,14 @@ public class OrderController {
             @RequestParam OrderStatus status) {
         repository.updateStatus(id, status);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Cancelar pedido")
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<Order> cancel(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "USER_REQUEST") CancellationReason reason) {
+        Order cancelled = orderCancellationService.cancel(id, reason);
+        return ResponseEntity.ok(cancelled);
     }
 }

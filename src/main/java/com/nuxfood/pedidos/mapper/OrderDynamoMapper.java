@@ -1,6 +1,7 @@
 package com.nuxfood.pedidos.mapper;
 
 import com.nuxfood.pedidos.model.Order;
+import com.nuxfood.pedidos.model.enums.CancellationReason;
 import com.nuxfood.pedidos.model.enums.OrderStatus;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -19,6 +20,8 @@ public class OrderDynamoMapper {
                 .total(parseTotal(item.get("total")))
                 .status(parseStatus(item.get("status")))
                 .createdAt(parseCreatedAt(item.get("createdAt")))
+                .cancelReason(parseCancelReason(item.get("cancelReason")))
+                .cancelledAt(parseCreatedAt(item.get("cancelledAt")))
                 .build();
     }
 
@@ -42,8 +45,16 @@ public class OrderDynamoMapper {
     private static LocalDateTime parseCreatedAt(AttributeValue av) {
         String s = av != null ? av.s() : null;
         if (s == null || s.isEmpty()) {
-            return LocalDateTime.of(1970, 1, 1, 0, 0);
+            return null;
         }
         return LocalDateTime.parse(s);
+    }
+
+    private static CancellationReason parseCancelReason(AttributeValue av) {
+        String s = av != null ? av.s() : null;
+        if (s == null || s.isEmpty()) {
+            return null;
+        }
+        return CancellationReason.valueOf(s);
     }
 }

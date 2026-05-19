@@ -72,13 +72,6 @@ EXPRESS → published to orders-express-queue → ExpressOrderWorker → PREPARI
 | `orderType` | String (Enum) | OrderType |
 | `createdAt` | String (ISO DateTime) | — |
 
-**GSI: `userId-index`**
-- Allows efficient queries by user without scanning the full table
-- Projection: ALL
-
-### Why DynamoDB and not RDS?
-Orders are accessed primarily by `orderId` (direct lookup O(1)) or `userId` (via GSI). No complex joins required. DynamoDB's on-demand capacity scales automatically with delivery peaks without provisioning.
-
 ### Operations implemented
 
 | Operation | Method | Use case |
@@ -127,20 +120,7 @@ OrderProducer
 | `orders-payment-queue` | Payment processing | `orders-queue-dlq` |
 | `orders-delivery-queue` | Delivery allocation | `orders-queue-dlq` |
 | `orders-queue-dlq` | Failed messages — max 3 retries | — |
-
-### Key SQS concepts implemented
-
-| Concept | Configuration | Purpose |
-|---|---|---|
-| Visibility timeout | 30s | Message invisible while being processed — returns to queue if worker crashes |
-| Dead Letter Queue | maxReceiveCount: 3 | After 3 failed attempts message moves to DLQ automatically |
-| Long Polling | 20s wait time | Reduces cost by avoiding constant polling when queue is empty |
-| Standard Queue | Unlimited throughput | At-least-once delivery — order type routing handled by producer |
-| Queue Chaining | Automatic | NormalOrderWorker publishes to payment queue on success |
-| DLQ Redrive | AWS Console | After fixing a bug messages can be moved back from DLQ to origin queue |
-
-### Idempotency
-SQS Standard may deliver duplicate messages in rare cases. Workers handle this via DynamoDB `ConditionExpression attribute_not_exists` — a second write of the same order is silently rejected.
+ot_exists` — a second write of the same order is silently rejected.
 
 ---
 

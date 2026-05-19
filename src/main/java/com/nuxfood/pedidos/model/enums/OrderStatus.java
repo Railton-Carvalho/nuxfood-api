@@ -5,6 +5,7 @@ public enum OrderStatus {
     CONFIRMED,
     PREPARING,
     OUT_FOR_DELIVERY,
+    WAITING_FOR_DELIVERY,
     DELIVERED,
     CANCELLED,
     PAID

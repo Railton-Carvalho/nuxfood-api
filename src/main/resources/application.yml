@@ -5,6 +5,15 @@ spring:
 aws:
   region: us-east-1
   profile: pessoal
+  sqs:
+    orders-queue-url: https://sqs.us-east-1.amazonaws.com/533267406343/orders-queue
+    orders-express-queue-url: https://sqs.us-east-1.amazonaws.com/533267406343/orders-express-queue
+    orders-delivery-queue-url: https://sqs.us-east-1.amazonaws.com/533267406343/orders-delivery-queue-url
+    orders-payment-queue-url: https://sqs.us-east-1.amazonaws.com/533267406343/orders-payment-queue-url
+cloud:
+  aws:
+    sqs:
+      region: us-east-1
 
 server:
   port: 8080

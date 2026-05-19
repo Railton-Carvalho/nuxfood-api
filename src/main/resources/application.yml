@@ -6,5 +6,11 @@ aws:
   region: us-east-1
   profile: pessoal
 
+
+cloud:
+  aws:
+    sqs:
+      region: us-east-1
+
 server:
   port: 8080

@@ -5,6 +5,8 @@ import com.nuxfood.pedidos.model.PagedResponse;
 import com.nuxfood.pedidos.model.enums.OrderStatus;
 import com.nuxfood.pedidos.orders.messaging.OrderProducer;
 import com.nuxfood.pedidos.repository.OrderRepository;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -18,12 +20,14 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/orders")
 @RequiredArgsConstructor
+@Tag(name = "Pedidos", description = "Operações de criação e consulta de pedidos")
 public class OrderController {
 
     private final OrderRepository repository;
 
     private final OrderProducer orderProducer;
 
+    @Operation(summary = "Criar pedido")
     @PostMapping
     public ResponseEntity<Order> create(@RequestBody Order order) {
         order.setOrderId(UUID.randomUUID().toString());
@@ -40,6 +44,7 @@ public class OrderController {
         return ResponseEntity.status(201).body(order);
     }
 
+    @Operation(summary = "Buscar pedido por ID")
     @GetMapping("/{id}")
     public ResponseEntity<Order> findById(@PathVariable String id) {
         return repository.findById(id)
@@ -47,6 +52,7 @@ public class OrderController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Operation(summary = "Listar pedidos paginados")
     @GetMapping("/paged")
     public PagedResponse<Order> findAll(
             @RequestParam(defaultValue = "10") int limit,
@@ -54,6 +60,7 @@ public class OrderController {
         return repository.findAllPaged(limit, lastKey);
     }
 
+    @Operation(summary = "Listar pedidos por usuário e status")
     @GetMapping("/user/{userId}/status/{status}")
     public List<Order> findAllByUserAndStatus(
             @PathVariable String userId,
@@ -62,16 +69,19 @@ public class OrderController {
         return repository.findByUserAndStatus(userId, status);
     }
 
+    @Operation(summary = "Listar pedidos por usuário")
     @GetMapping("/user/{userId}")
     public List<Order> findByUser(@PathVariable String userId) {
         return repository.findByUserId(userId);
     }
 
+    @Operation(summary = "Listar todos os pedidos")
     @GetMapping
     public List<Order> findAll() {
         return repository.findAll();
     }
 
+    @Operation(summary = "Atualizar status do pedido")
     @PatchMapping("/{id}/status")
     public ResponseEntity<Void> updateStatus(
             @PathVariable String id,

@@ -15,6 +15,12 @@ cloud:
     sqs:
       region: us-east-1
 
+nuxfood:
+  orders:
+    payment:
+      # Total terminando nestes centavos simula falha (ex.: 49.99)
+      fail-when-total-ends-with: 99
+
 server:
   port: 8080
 

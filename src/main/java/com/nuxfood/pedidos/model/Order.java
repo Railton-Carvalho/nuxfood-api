@@ -1,6 +1,7 @@
 package com.nuxfood.pedidos.model;
 
 import com.nuxfood.pedidos.model.enums.OrderStatus;
+import com.nuxfood.pedidos.model.enums.OrderType;
 import lombok.Data;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,5 +19,6 @@ public class Order {
     private String product;
     private Double total;
     private OrderStatus status;
+    private OrderType orderType = OrderType.NORMAL;
     private LocalDateTime createdAt;
 }

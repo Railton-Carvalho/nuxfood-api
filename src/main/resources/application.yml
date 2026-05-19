@@ -5,6 +5,8 @@ spring:
 aws:
   region: us-east-1
   profile: pessoal
+  sns:
+    orders-topic-arn: arn:aws:sns:us-east-1:533267406343:orders-topic
   sqs:
     orders-queue-url: https://sqs.us-east-1.amazonaws.com/533267406343/orders-queue
     orders-express-queue-url: https://sqs.us-east-1.amazonaws.com/533267406343/orders-express-queue

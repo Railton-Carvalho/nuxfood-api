@@ -31,7 +31,7 @@ public class NormalOrderWorker {
     public void processOrder(String message) {
         try {
             Order order = objectMapper.readValue(message, Order.class);
-            
+
             log.info("NORMAL ORDER RECEIVED...: " + order.getOrderId());
             TimeUnit.SECONDS.sleep(3);
 

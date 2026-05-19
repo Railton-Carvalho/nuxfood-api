@@ -1,5 +1,6 @@
 package com.nuxfood.pedidos.model;
 
+import com.nuxfood.pedidos.model.enums.CancellationReason;
 import com.nuxfood.pedidos.model.enums.OrderStatus;
 import com.nuxfood.pedidos.model.enums.OrderType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -30,4 +31,8 @@ public class Order {
     private OrderType orderType = OrderType.NORMAL;
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private LocalDateTime createdAt;
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    private CancellationReason cancelReason;
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
+    private LocalDateTime cancelledAt;
 }

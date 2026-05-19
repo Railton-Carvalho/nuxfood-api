@@ -24,8 +24,8 @@ public class NormalOrderWorker {
 
     private final ObjectMapper objectMapper;
 
-    @Value("${aws.sqs.orders-delivery-queue-url}")
-    private String delivery_queue_url;
+    @Value("${aws.sqs.orders-payment-queue-url}")
+    private String paymentQueueUrl;
 
     @SqsListener("${aws.sqs.orders-queue-url}")
     public void processOrder(String message) {
@@ -40,7 +40,7 @@ public class NormalOrderWorker {
             orderRepository.updateStatus(order.getOrderId(), OrderStatus.CONFIRMED);
             order.setStatus(OrderStatus.CONFIRMED);
 
-            sqsTemplate.send(delivery_queue_url, objectMapper.writeValueAsString(order));
+            sqsTemplate.send(paymentQueueUrl, objectMapper.writeValueAsString(order));
 
             log.info("Order processed successfully: {}", order.getOrderId());
 

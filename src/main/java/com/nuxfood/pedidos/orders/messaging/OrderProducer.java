@@ -3,14 +3,15 @@ package com.nuxfood.pedidos.orders.messaging;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nuxfood.pedidos.model.Order;
+import com.nuxfood.pedidos.model.enums.CancellationReason;
 import com.nuxfood.pedidos.model.enums.OrderType;
+import com.nuxfood.pedidos.orders.cancellation.OrderCancellationService;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 
@@ -22,6 +23,8 @@ public class OrderProducer {
     private final SqsTemplate sqsTemplate;
 
     private final ObjectMapper objectMapper;
+
+    private final OrderCancellationService orderCancellationService;
 
     @Value("${aws.sqs.orders-queue-url}")
     private String ordersQueueUrl;
@@ -45,8 +48,9 @@ public class OrderProducer {
         }catch (JsonProcessingException e) {
             log.error("Failed to serialize order: {}", order.getOrderId(), e);
             throw new RuntimeException("Failed to serialize order", e);
-        }catch (Exception e){
+        } catch (Exception e) {
             log.error("Failed to publish order to SQS: {}", order.getOrderId(), e);
+            orderCancellationService.cancelFromMessage(order.getOrderId(), CancellationReason.SYSTEM_ERROR);
             throw new RuntimeException("Failed to publish order to queue", e);
         }
     }

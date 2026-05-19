@@ -11,6 +11,7 @@ A backend API for a food delivery platform built with Java 21, Spring Boot, and 
 - **Maven**
 - **AWS SDK v2**
 - **Spring Cloud AWS 3.1**
+- **SpringDoc OpenAPI** (Swagger UI)
 
 ## ☁️ AWS Services
 
@@ -38,23 +39,61 @@ A backend API for a food delivery platform built with Java 21, Spring Boot, and 
 | `GET` | `/orders/user/{userId}` | Find all orders by user |
 | `GET` | `/orders/user/{userId}/status/{status}` | Find orders by user filtered by status |
 | `PATCH` | `/orders/{id}/status` | Update order status |
+| `POST` | `/orders/{id}/cancel` | Cancel order (optional `reason` query param) |
+
+### Swagger / OpenAPI
+
+Interactive API documentation is available when the app is running:
+
+| Resource | URL |
+|---|---|
+| Swagger UI | http://localhost:8080/swagger-ui.html |
+| OpenAPI JSON | http://localhost:8080/v3/api-docs |
+
+Endpoints are grouped under the **Pedidos** tag with `@Operation` summaries.
 
 ### Order Status Flow
 
 ```
-NORMAL order:
-CREATED → CONFIRMED → PREPARING → OUT_FOR_DELIVERY → WAITING_FOR_DELIVERY → DELIVERED
-                                                                           ↘ CANCELLED
-EXPRESS order:
-CREATED → PREPARING → OUT_FOR_DELIVERY → WAITING_FOR_DELIVERY → DELIVERED
+NORMAL order (happy path):
+CREATED → CONFIRMED → PAID → WAITING_FOR_DELIVERY → OUT_FOR_DELIVERY → DELIVERED
+
+EXPRESS order (happy path):
+CREATED → PREPARING → PAID → WAITING_FOR_DELIVERY → OUT_FOR_DELIVERY → DELIVERED
+
+Any stage (except DELIVERED) ──► CANCELLED
 ```
 
 ### Order Types
 
+| Type | Queue | Worker | Next step |
+|---|---|---|---|
+| `NORMAL` | `orders-queue` | `NormalOrderWorker` | `CONFIRMED` → payment queue |
+| `EXPRESS` | `orders-express-queue` | `ExpressOrderWorker` | `PREPARING` → payment queue |
+
+### Cancellation
+
+Cancellation is centralized in `OrderCancellationService`. Orders in status `DELIVERED` cannot be cancelled. Requests on already `CANCELLED` orders are idempotent.
+
+| Reason | Trigger |
+|---|---|
+| `PAYMENT_FAILED` | `PaymentSimulator` rejects payment (see below) |
+| `DELIVERY_FAILED` | No delivery driver available (product contains `SEM_ENTREGADOR`) |
+| `SYSTEM_ERROR` | SQS publish failure after save, or delivery queue publish failure after payment |
+| `USER_REQUEST` | Manual `POST /orders/{id}/cancel` (default reason) |
+| `PROCESSING_FAILED` | Reserved for future use |
+
+**Payment simulation:** totals whose cents end with the configured suffix are rejected (default: `99` → e.g. `49.99` fails).
+
+**Delivery simulation:** product name containing `SEM_ENTREGADOR` cancels the order during delivery processing.
+
+Cancel request example:
+
+```bash
+curl -X POST "http://localhost:8080/orders/{orderId}/cancel?reason=USER_REQUEST"
 ```
-NORMAL  → published to orders-queue         → NormalOrderWorker  → CONFIRMED
-EXPRESS → published to orders-express-queue → ExpressOrderWorker → PREPARING
-```
+
+Cancelled orders persist `cancelReason` and `cancelledAt` in DynamoDB.
 
 ---
 
@@ -71,6 +110,8 @@ EXPRESS → published to orders-express-queue → ExpressOrderWorker → PREPARI
 | `status` | String (Enum) | OrderStatus |
 | `orderType` | String (Enum) | OrderType |
 | `createdAt` | String (ISO DateTime) | — |
+| `cancelReason` | String (Enum) | CancellationReason (when cancelled) |
+| `cancelledAt` | String (ISO DateTime) | Set on cancellation |
 
 ### Operations implemented
 
@@ -81,7 +122,8 @@ EXPRESS → published to orders-express-queue → ExpressOrderWorker → PREPARI
 | `Query` | Find by user | Efficient via GSI userId-index |
 | `Scan` | Find all | Full table read — used with pagination |
 | `UpdateItem` | Update status | Partial update without overwriting |
-| `ConditionExpression` | Safe update | Only updates if item exists |
+| `UpdateItem` | Cancel | Sets status, cancelReason, cancelledAt |
+| `ConditionExpression` | Safe update | Only updates if item exists / not delivered |
 | `FilterExpression` | Filter by status | Applied after GSI query |
 | `LastEvaluatedKey` | Pagination | Safe handling of 1MB DynamoDB limit |
 
@@ -93,7 +135,7 @@ EXPRESS → published to orders-express-queue → ExpressOrderWorker → PREPARI
 POST /orders
      │
      ▼
-DynamoDB (save order)
+DynamoDB (save order — CREATED)
      │
      ▼
 OrderProducer
@@ -102,13 +144,25 @@ OrderProducer
      │                                                        │
      │                                              orders-payment-queue
      │                                                        │
-     │                                              PaymentWorker → PAID
-     │                                                        │
-     │                                              orders-delivery-queue
-     │                                                        │
-     │                                              DeliveryWorker → OUT_FOR_DELIVERY
+     │                                              PaymentWorker
+     │                                                   ├── charge OK  → PAID
+     │                                                   │       └──► orders-delivery-queue
+     │                                                   │                    │
+     │                                                   │             DeliveryWorker → OUT_FOR_DELIVERY
+     │                                                   │
+     │                                                   └── charge FAIL → CANCELLED (PAYMENT_FAILED)
      │
      └── OrderType.EXPRESS ──► orders-express-queue ──► ExpressOrderWorker → PREPARING
+                                                                  │
+                                                        orders-payment-queue
+                                                                  │
+                                                        (same PaymentWorker flow as above)
+
+Failures:
+  • OrderProducer SQS publish fail     → CANCELLED (SYSTEM_ERROR)
+  • Payment OK, delivery publish fail  → CANCELLED (SYSTEM_ERROR)
+  • Delivery: product has SEM_ENTREGADOR → CANCELLED (DELIVERY_FAILED)
+  • POST /orders/{id}/cancel             → CANCELLED (USER_REQUEST or custom reason)
 ```
 
 ### Queues
@@ -120,7 +174,6 @@ OrderProducer
 | `orders-payment-queue` | Payment processing | `orders-queue-dlq` |
 | `orders-delivery-queue` | Delivery allocation | `orders-queue-dlq` |
 | `orders-queue-dlq` | Failed messages — max 3 retries | — |
-ot_exists` — a second write of the same order is silently rejected.
 
 ---
 
@@ -206,8 +259,24 @@ aws:
     orders-payment-queue-url: https://sqs.us-east-1.amazonaws.com/{accountId}/orders-payment-queue
     orders-delivery-queue-url: https://sqs.us-east-1.amazonaws.com/{accountId}/orders-delivery-queue
 
+cloud:
+  aws:
+    sqs:
+      region: us-east-1
+
+nuxfood:
+  orders:
+    payment:
+      fail-when-total-ends-with: 99   # e.g. 49.99 simulates payment failure
+
 server:
   port: 8080
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
 ```
 
 ### Run
@@ -215,6 +284,8 @@ server:
 ```bash
 ./mvnw spring-boot:run
 ```
+
+Open Swagger UI: http://localhost:8080/swagger-ui.html
 
 ---
 
@@ -231,7 +302,7 @@ curl -X POST http://localhost:8080/orders \
     "orderType": "NORMAL"
   }'
 
-# Create express order → CREATED → PREPARING (automatic)
+# Create express order → CREATED → PREPARING → PAID → ... (automatic)
 curl -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
   -d '{
@@ -241,6 +312,29 @@ curl -X POST http://localhost:8080/orders \
     "orderType": "EXPRESS"
   }'
 
+# Simulate payment failure (total ends with .99)
+curl -X POST http://localhost:8080/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-123",
+    "product": "pizza-margherita",
+    "total": 49.99,
+    "orderType": "NORMAL"
+  }'
+
+# Simulate delivery failure (no driver)
+curl -X POST http://localhost:8080/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user-123",
+    "product": "Pizza SEM_ENTREGADOR",
+    "total": 35.00,
+    "orderType": "NORMAL"
+  }'
+
+# Cancel order manually
+curl -X POST "http://localhost:8080/orders/{orderId}/cancel?reason=USER_REQUEST"
+
 # Find by ID
 curl http://localhost:8080/orders/{orderId}
 
@@ -248,7 +342,7 @@ curl http://localhost:8080/orders/{orderId}
 curl http://localhost:8080/orders/user/user-123
 
 # Find by user and status
-curl http://localhost:8080/orders/user/user-123/status/CONFIRMED
+curl http://localhost:8080/orders/user/user-123/status/CANCELLED
 
 # List all with pagination
 curl "http://localhost:8080/orders/paged?limit=5"
@@ -269,6 +363,8 @@ curl -X PATCH "http://localhost:8080/orders/{orderId}/status?status=DELIVERED"
 - [x] SQS — payment and delivery pipeline (automatic queue chaining)
 - [x] SQS — Dead Letter Queue with maxReceiveCount=3
 - [x] CloudWatch — DLQ and backlog alarms
+- [x] Swagger / OpenAPI documentation (SpringDoc)
+- [x] Order cancellation flow (payment, delivery, system errors, manual API)
 - [ ] SNS — fan-out with filter policy routing
 - [ ] Lambda — notification trigger via SQS event source
 - [ ] S3 — order receipt upload with presigned URL

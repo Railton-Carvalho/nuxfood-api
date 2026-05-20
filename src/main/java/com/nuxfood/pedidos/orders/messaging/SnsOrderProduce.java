@@ -27,7 +27,22 @@ public class SnsOrderProduce {
 
     public void publishOrder(Order order) {
         try {
-            String message = objectMapper.writeValueAsString(order);
+            String sqsMessage = objectMapper.writeValueAsString(order);
+
+            String emailMessage = "NuxFood: Novo pedido criado!\n\n" +
+                    "ID: " + order.getOrderId() + "\n" +
+                    "Cliente: " + order.getUserId() + "\n" +
+                    "Produto: " + order.getProduct() + "\n" +
+                    "Total: R$" + order.getTotal() + "\n" +
+                    "Tipo: " + order.getOrderType() + "\n" +
+                    "Status: " + order.getStatus() + "\n" +
+                    "Data: " + order.getCreatedAt();
+
+            Map<String, String> messageByProtocol = Map.of(
+                    "default", sqsMessage,
+                    "sqs",     sqsMessage,
+                    "email",   emailMessage
+            );
 
             MessageAttributeValue orderTypeAttribute = MessageAttributeValue.builder()
                     .dataType("String")
@@ -36,9 +51,12 @@ public class SnsOrderProduce {
 
             PublishRequest pubRequest = PublishRequest.builder()
                     .topicArn(ordersTopicArn)
-                    .message(message)
+                    .messageStructure("json") // diz ao SNS que é um mapa de protocolo
+                    .message(objectMapper.writeValueAsString(messageByProtocol))
                     .messageAttributes(Map.of("orderType", orderTypeAttribute))
                     .build();
+
+            log.info("Data {}", pubRequest);
 
             snsClient.publish(pubRequest);
 

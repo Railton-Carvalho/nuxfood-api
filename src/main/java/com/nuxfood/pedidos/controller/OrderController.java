@@ -6,6 +6,7 @@ import com.nuxfood.pedidos.model.enums.CancellationReason;
 import com.nuxfood.pedidos.model.enums.OrderStatus;
 import com.nuxfood.pedidos.orders.cancellation.OrderCancellationService;
 import com.nuxfood.pedidos.orders.messaging.OrderProducer;
+import com.nuxfood.pedidos.orders.messaging.SnsOrderProduce;
 import com.nuxfood.pedidos.repository.OrderRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,7 +28,7 @@ public class OrderController {
 
     private final OrderRepository repository;
 
-    private final OrderProducer orderProducer;
+    private final SnsOrderProduce orderProducer;
 
     private final OrderCancellationService orderCancellationService;
 
